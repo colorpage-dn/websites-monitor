@@ -1,32 +1,57 @@
-name: Monitor Website Layout
+name: Monitor Website Layout Changes
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Run every hour (adjust as needed)
-  workflow_dispatch:
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch: # Triggered manually
 
 jobs:
-  monitor:
+  monitor_websites:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
+      # Set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
 
+      # Install dependencies
       - name: Install dependencies
         run: |
-          pip install selenium pillow pixelmatch
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run Website Layout Check
+      # Run the layout monitor script
+      - name: Run monitor_layout_changes.py
         run: python monitor_layout_changes.py
 
-      - name: Upload Screenshots as Artifacts
-        uses: actions/upload-artifact@v3
+      # Read the changed URLs from the file
+      - name: Read changed URLs
+        id: get-changed-urls
+        run: |
+          if [ -f changed_urls.txt ]; then
+            changed_urls=$(cat changed_urls.txt)
+            echo "::set-output name=changed_urls::$changed_urls"
+          else
+            echo "::set-output name=changed_urls::No changes detected."
+          fi
+
+      # Send email alert (if there's a change)
+      - name: Send email alert
+        uses: dawidd6/action-send-mail@v3
         with:
-          name: screenshots
-          path: ./screenshots
+          smtp-server: ${{ secrets.SMTP_HOST }}
+          smtp-port: ${{ secrets.SMTP_PORT }}
+          smtp-username: ${{ secrets.SMTP_USERNAME }}
+          smtp-password: ${{ secrets.SMTP_PASSWORD }}
+          from: ${{ secrets.SENDER_EMAIL }}
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          subject: GitHub Monitor - Website Change Alert
+          body: |
+            The following websites have been detected with layout changes:
+            ${{ steps.get-changed-urls.outputs.changed_urls }}
