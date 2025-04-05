@@ -1,1 +1,2 @@
-playwright==1.22.0
+pyppeteer
+asyncio
