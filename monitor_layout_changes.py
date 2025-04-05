@@ -1,111 +1,122 @@
-import requests
-import hashlib
+import os
+import time
+import pixelmatch
+from selenium import webdriver
+from PIL import Image
+import numpy as np
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import os
+from email.mime.image import MIMEImage
+from datetime import datetime
+from io import BytesIO
 
 # List of URLs to monitor
-URLs = [
-    "https://abcfuels.com/",
-    "https://adventvalue.com/",
-    "https://ahcllc.net/",
-    "https://capsfund.org/",
-    "https://carlbellplumbing.com/",
-    "https://centerforspectrumservices.org/",
-    "https://classroomauthors.com/",
-    "https://colorpageonline.com/",
-    "https://destinationrugby.com/",
-    "https://dutchessfair.com/",
-    "https://gcpennysaver.com/",
-    "https://grassandgardens.com/",
-    "https://greenheronfarm.com/",
-    "https://herzogs.com/",
-    "https://hopefarmpress.com/",
-    "https://hvribfest.com/",
-    "https://www.jeffloweplumbing.com/",
-    "https://kingstonplaza.com/",
-    "https://kingstonvisitorsguide.com/",
-    "https://lhvprecast.com/",
-    "https://mahv.net/",
-    "https://mastenenterprises.com/",
-    "https://mcgowanmasonry.com/",
-    "https://newyorkinjurylaw.net/",
-    "https://nve-cd.com/",
-    "https://nveoffer.com/",
-    "https://proguardcoverage.com/",
-    "https://www.rbtcpas.com/",
-    "https://rdcontracting-ny.com/",
-    "https://rhinebeckcarshow.net/",
-    "https://specpension.com/",
-    "https://ucitalianamericanfoundation.org/",
-    "https://ucpennysaver.com/",
-    "https://ulsterchamber.net/",
-    "https://ulstercountyfair.com/",
-    "https://yourshoppersguide.com/"
+urls_to_monitor = [
+    'https://abcfuels.com/',
+    'https://adventvalue.com/',
+    'https://ahcllc.net/',
+    'https://capsfund.org/',
+    'https://carlbellplumbing.com/',
+    'https://centerforspectrumservices.org/',
+    'https://classroomauthors.com/',
+    'https://colorpageonline.com/',
+    'https://destinationrugby.com/',
+    'https://dutchessfair.com/',
+    'https://gcpennysaver.com/',
+    'https://grassandgardens.com/',
+    'https://greenheronfarm.com/',
+    'https://herzogs.com/',
+    'https://hopefarmpress.com/',
+    'https://hvribfest.com/',
+    'https://www.jeffloweplumbing.com/',
+    'https://kingstonplaza.com/',
+    'https://kingstonvisitorsguide.com/',
+    'https://lhvprecast.com/',
+    'https://mahv.net/',
+    'https://mastenenterprises.com/',
+    'https://mcgowanmasonry.com/',
+    'https://newyorkinjurylaw.net/',
+    'https://nve-cd.com/',
+    'https://nveoffer.com/',
+    'https://proguardcoverage.com/',
+    'https://www.rbtcpas.com/',
+    'https://rdcontracting-ny.com/',
+    'https://rhinebeckcarshow.net/',
+    'https://specpension.com/',
+    'https://ucitalianamericanfoundation.org/',
+    'https://ucpennysaver.com/',
+    'https://ulsterchamber.net/',
+    'https://ulstercountyfair.com/',
+    'https://yourshoppersguide.com/',
 ]
 
-# Function to hash the content of the page to detect changes
-def get_page_hash(url):
-    response = requests.get(url)
-    page_hash = hashlib.md5(response.text.encode('utf-8')).hexdigest()
-    return page_hash
+# Directory to save screenshots
+screenshot_dir = './screenshots/'
 
-# Load previously saved hashes from file (if any)
-def load_previous_hashes():
-    if os.path.exists("previous_hashes.txt"):
-        with open("previous_hashes.txt", "r") as file:
-            return {line.split()[0]: line.split()[1] for line in file.readlines()}
-    return {}
+# Ensure the directory exists
+os.makedirs(screenshot_dir, exist_ok=True)
 
-# Save the current hashes to file
-def save_current_hashes(hashes):
-    with open("previous_hashes.txt", "w") as file:
-        for url, page_hash in hashes.items():
-            file.write(f"{url} {page_hash}\n")
+def capture_screenshot(url):
+    driver = webdriver.Chrome()
+    driver.get(url)
+    time.sleep(5)  # Allow time for CSS and content to load
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    screenshot_path = os.path.join(screenshot_dir, f"{timestamp}_{url.replace('https://', '').replace('/', '_')}.png")
+    driver.save_screenshot(screenshot_path)
+    driver.quit()
+    return screenshot_path
 
-# Send email notification
-def send_email(subject, body):
-    sender_email = os.getenv("SENDER_EMAIL")
-    receiver_email = os.getenv("RECIPIENT_EMAIL")
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = os.getenv("SMTP_PORT")
-    smtp_username = os.getenv("SMTP_USERNAME")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    
+def compare_screenshots(old_screenshot_path, new_screenshot_path):
+    old_image = Image.open(old_screenshot_path)
+    new_image = Image.open(new_screenshot_path)
+
+    # Convert images to grayscale and then to numpy arrays
+    old_image = old_image.convert('L')
+    new_image = new_image.convert('L')
+    old_image_np = np.array(old_image)
+    new_image_np = np.array(new_image)
+
+    # Compare images using Pixelmatch
+    diff = pixelmatch(old_image_np, new_image_np, None, old_image_np.shape[1], old_image_np.shape[0], threshold=0.1)
+    return diff
+
+def send_email_alert(subject, body, recipient_email, smtp_host, smtp_port, smtp_user, smtp_pass, sender_email):
     msg = MIMEMultipart()
     msg['From'] = sender_email
-    msg['To'] = receiver_email
+    msg['To'] = recipient_email
     msg['Subject'] = subject
 
     msg.attach(MIMEText(body, 'plain'))
 
-    try:
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_username, smtp_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            print(f"Alert email sent to {receiver_email}")
-    except Exception as e:
-        print(f"Error sending email: {e}")
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        text = msg.as_string()
+        server.sendmail(sender_email, recipient_email, text)
 
-# Main function to check for changes
-def monitor_changes():
-    previous_hashes = load_previous_hashes()
-    current_hashes = {}
+# SMTP credentials (to be replaced with GitHub secrets)
+smtp_host = os.getenv("SMTP_HOST")
+smtp_port = os.getenv("SMTP_PORT")
+smtp_user = os.getenv("SMTP_USER")
+smtp_pass = os.getenv("SMTP_PASS")
+sender_email = os.getenv("SENDER_EMAIL")
+recipient_email = "dnolan@tsasinc.com"  # Fixed recipient
 
-    for url in URLs:
-        print(f"Checking {url}...")
-        current_hashes[url] = get_page_hash(url)
+for url in urls_to_monitor:
+    new_screenshot = capture_screenshot(url)
 
-        if url in previous_hashes:
-            if current_hashes[url] != previous_hashes[url]:
-                print(f"Layout change detected on {url}")
-                send_email(f"GitHub Monitor - Website Change Alert", f"Layout change detected on {url}")
-        else:
-            print(f"First check for {url}")
-        
-    save_current_hashes(current_hashes)
+    # Check if there are existing screenshots
+    existing_screenshots = sorted(os.listdir(screenshot_dir), reverse=True)
 
-if __name__ == "__main__":
-    monitor_changes()
+    if existing_screenshots:
+        # Compare with the most recent screenshot
+        previous_screenshot_path = os.path.join(screenshot_dir, existing_screenshots[0])
+        diff = compare_screenshots(previous_screenshot_path, new_screenshot)
+
+        if diff > 100:  # Arbitrary threshold for significant changes
+            subject = f"GitHub Monitor - Website Change Alert: {url}"
+            body = f"Significant layout change detected for {url}. Please check the website."
+            send_email_alert(subject, body, recipient_email, smtp_host, smtp_port, smtp_user, smtp_pass, sender_email)
+    else:
+        print(f"No previous screenshot found for {url}, saving the first one.")
