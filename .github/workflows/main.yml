@@ -22,7 +22,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           python -m playwright install chromium
-          echo "::add-path::$(python -m playwright --browser chromium --target-path)"
 
       - name: Run monitor script
         run: python monitor.py
