@@ -4,28 +4,53 @@ import hashlib
 import smtplib
 from email.mime.text import MIMEText
 import os
+from PIL import Image, ImageChops
+import io
 
-async def capture_layout_hash(url):
+async def capture_screenshot_hash(url):
     browser = await launch()
     page = await browser.newPage()
+    await page.setViewport({'width': 1280, 'height': 720})
     await page.goto(url, {'waitUntil': 'networkidle2'})
-    content = await page.content()
+    screenshot = await page.screenshot()
     await browser.close()
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+    return hashlib.sha256(screenshot).hexdigest()
+
+async def compare_screenshots(url, old_hash):
+    browser = await launch()
+    page = await browser.newPage()
+    await page.setViewport({'width': 1280, 'height': 720})
+    await page.goto(url, {'waitUntil': 'networkidle2'})
+    screenshot_bytes = await page.screenshot()
+    await browser.close()
+    new_hash = hashlib.sha256(screenshot_bytes).hexdigest()
+
+    if new_hash != old_hash:
+        image1 = Image.open(io.BytesIO(screenshot_bytes))
+        image2 = Image.open(io.BytesIO(bytes.fromhex(old_hash)))
+        diff = ImageChops.difference(image1, image2)
+        if diff.getbbox():
+            return True
+        else:
+            return False
+    else:
+        return False
 
 async def check_for_changes(urls):
     hashes = {}
     for url in urls:
-        hashes[url] = await capture_layout_hash(url)
+        hashes[url] = await capture_screenshot_hash(url)
 
     while True:
-        await asyncio.sleep(600)  # Check every 10 minutes (adjust as needed)
+        await asyncio.sleep(600)
+        changed_urls = []
         for url in urls:
-            new_hash = await capture_layout_hash(url)
-            if new_hash != hashes[url]:
-                print(f"Change detected on {url}")
-                await send_email(f"Layout change detected on {url}")
-                hashes[url] = new_hash
+            if await compare_screenshots(url, hashes[url]):
+                print(f"Visual change detected on {url}")
+                changed_urls.append(url)
+                hashes[url] = await capture_screenshot_hash(url)
+        if changed_urls:
+            await send_email(f"Visual layout changes detected on: \n{', '.join(changed_urls)}")
 
 async def send_email(message):
     sender_email = os.environ.get('SENDER_EMAIL')
@@ -36,7 +61,7 @@ async def send_email(message):
     smtp_username = os.environ.get('SMTP_USERNAME')
 
     msg = MIMEText(message)
-    msg['Subject'] = "Website Layout Change Detected"
+    msg['Subject'] = "Website Visual Layout Change Detected"
     msg['From'] = sender_email
     msg['To'] = receiver_email
 
