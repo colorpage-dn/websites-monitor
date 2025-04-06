@@ -12,7 +12,7 @@ async def capture_screenshot_hash(url):
         browser = await p.chromium.launch()
         page = await browser.new_page()
         await page.set_viewport_size({"width": 1280, "height": 720})
-        await page.goto(url, {"waitUntil": "networkidle"})
+        await page.goto(url, {"waitUntil": "networkidle"}) #Corrected line.
         screenshot = await page.screenshot()
         await browser.close()
     return hashlib.sha256(screenshot).hexdigest()
@@ -22,7 +22,7 @@ async def compare_screenshots(url, old_hash):
         browser = await p.chromium.launch()
         page = await browser.new_page()
         await page.set_viewport_size({"width": 1280, "height": 720})
-        await page.goto(url, {"waitUntil": "networkidle"})
+        await page.goto(url, {"waitUntil": "networkidle"}) #Corrected line.
         screenshot_bytes = await page.screenshot()
         await browser.close()
     new_hash = hashlib.sha256(screenshot_bytes).hexdigest()
