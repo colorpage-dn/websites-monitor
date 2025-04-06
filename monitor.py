@@ -42,13 +42,13 @@ async def check_for_changes(urls):
         hashes[url] = await capture_screenshot_hash(url)
 
     while True:
-        await asyncio.sleep(600)
         changed_urls = []
         for url in urls:
             if await compare_screenshots(url, hashes[url]):
                 print(f"Visual change detected on {url}")
                 changed_urls.append(url)
                 hashes[url] = await capture_screenshot_hash(url)
+            await asyncio.sleep(60)
         if changed_urls:
             await send_email(f"Visual layout changes detected on: \n{', '.join(changed_urls)}")
 
