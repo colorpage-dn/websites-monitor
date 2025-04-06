@@ -1,5 +1,5 @@
 import asyncio
-from pyppeteer import launch
+from playwright.async_api import async_playwright
 import hashlib
 import smtplib
 from email.mime.text import MIMEText
@@ -8,21 +8,23 @@ from PIL import Image, ImageChops
 import io
 
 async def capture_screenshot_hash(url):
-    browser = await launch()
-    page = await browser.newPage()
-    await page.setViewport({'width': 1280, 'height': 720})
-    await page.goto(url, {'waitUntil': 'networkidle2'})
-    screenshot = await page.screenshot()
-    await browser.close()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.set_viewport_size({"width": 1280, "height": 720})
+        await page.goto(url, {"waitUntil": "networkidle"})
+        screenshot = await page.screenshot()
+        await browser.close()
     return hashlib.sha256(screenshot).hexdigest()
 
 async def compare_screenshots(url, old_hash):
-    browser = await launch()
-    page = await browser.newPage()
-    await page.setViewport({'width': 1280, 'height': 720})
-    await page.goto(url, {'waitUntil': 'networkidle2'})
-    screenshot_bytes = await page.screenshot()
-    await browser.close()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.set_viewport_size({"width": 1280, "height": 720})
+        await page.goto(url, {"waitUntil": "networkidle"})
+        screenshot_bytes = await page.screenshot()
+        await browser.close()
     new_hash = hashlib.sha256(screenshot_bytes).hexdigest()
 
     if new_hash != old_hash:
