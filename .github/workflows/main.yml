@@ -23,7 +23,7 @@ jobs:
           pip install -r requirements.txt
           rm -rf ~/.cache/playwright
           python -m playwright install chromium
-          echo "::add-path::$(python -m playwright --browser chromium --target-path)"
+          echo "PLAYWRIGHT_BROWSERS_PATH=$(python -m playwright --browser chromium --target-path)" >> $GITHUB_ENV
 
       - name: Run monitor script
         run: python monitor.py
