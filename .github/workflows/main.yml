@@ -23,6 +23,11 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install chromium
 
+      - name: Clear caches
+        run: |
+          rm -rf ~/.cache/pip
+          rm -rf ~/.cache/playwright
+
       - name: Run monitor script
         run: python monitor.py
         env:
